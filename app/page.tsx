@@ -132,7 +132,7 @@ export default function Home() {
           <li><a href="#roles">Rôles</a></li>
           <li><a href="#projets">Projets</a></li>
           <li><a href="#reseau">Réseau</a></li>
-          <li><a href="/projets">Voir les projets</a></li>
+          <li><a href="/tresorerie">Trésorerie</a></li>
         </ul>
         <a href="#rejoindre" className="nav-cta">Rejoindre</a>
       </nav>
