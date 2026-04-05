@@ -130,11 +130,11 @@ export default function Home() {
         <a href="/" className="nav-logo">Mycorhiziens</a>
         <ul className="nav-links">
           <li><a href="#roles">Rôles</a></li>
-          <li><a href="#projets">Projets</a></li>
-          <li><a href="#reseau">Réseau</a></li>
+          <li><a href="/projets">Projets</a></li>
+          <li><a href="/reseau">Réseau</a></li>
           <li><a href="/tresorerie">Trésorerie</a></li>
         </ul>
-        <a href="#rejoindre" className="nav-cta">Rejoindre</a>
+        <a href="/auth" className="nav-cta">Rejoindre</a>
       </nav>
 
       {/* HERO */}
@@ -178,7 +178,7 @@ export default function Home() {
         <p className="hero-subtitle">Comme le mycélium relie les arbres d&apos;une forêt, nous relions des humains engagés pour agir ensemble — là où chacun est le plus utile.</p>
         <p className="hero-tagline">« Chaque être humain possède en lui du génie. »</p>
         <div className="hero-cta">
-          <button className="btn-primary">Rejoindre le réseau</button>
+          <a href="/auth" className="btn-primary">Rejoindre le réseau</a>
           <button className="btn-secondary">En savoir plus</button>
         </div>
         <div className="scroll-hint">
