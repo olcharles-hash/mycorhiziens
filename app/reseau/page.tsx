@@ -201,7 +201,7 @@ export default function ReseauPage() {
           <li><a href="/">Accueil</a></li>
           <li><a href="/projets">Projets</a></li>
           <li><a href="/reseau" className="active">Réseau</a></li>
-          <li><a href="#">Trésorerie</a></li>
+          <li><a href="/tresorerie">Trésorerie</a></li>
         </ul>
         <a href="#" className="rnav-cta">Mon profil</a>
       </nav>

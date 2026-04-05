@@ -275,8 +275,8 @@ export default function ProjetsPage() {
         <ul className="pnav-links">
           <li><a href="/">Accueil</a></li>
           <li><a href="/projets" className="active">Projets</a></li>
-          <li><a href="#">Réseau</a></li>
-          <li><a href="#">Trésorerie</a></li>
+          <li><a href="/reseau">Réseau</a></li>
+          <li><a href="/tresorerie">Trésorerie</a></li>
         </ul>
         <a href="#" className="pnav-cta">Mon profil</a>
       </nav>
