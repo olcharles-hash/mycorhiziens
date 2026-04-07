@@ -172,7 +172,13 @@ export default function ProjetsPage() {
   const [votes, setVotes] = useState<Record<string, boolean|null>>({});
   const [voteCounts, setVoteCounts] = useState<Record<string, {pour:number, contre:number}>>({});
   const [voteLoading, setVoteLoading] = useState<string|null>(null);
-  const [voteMessage, setVoteMessage] = useState('');
+  const [voteMessage, setVoteMessage] = useState('');const [dbProjects, setDbProjects] = useState<any[]>([]);
+
+useEffect(() => {
+  supabase.from('projets').select('*').then(({ data }) => {
+    if (data) setDbProjects(data);
+  });
+}, []);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
@@ -245,7 +251,19 @@ export default function ProjetsPage() {
     return c.pour + c.contre;
   };
 
-  const filtered = projects.filter(p => {
+  const allProjects = [...projects, ...dbProjects.map(p => ({
+  ...p,
+  steps: p.steps ? JSON.parse(p.steps) : [],
+  kanban: { todo: [], active: [], done: [] },
+  team: [],
+  expenses: [],
+  tweets: [],
+  remaining: p.budget - p.spent,
+  startDate: 'En attente vote',
+  statusClass: 'status-vote',
+}))];
+
+const filtered = allProjects.filter(p => {
     const okStatut = activeStatut === 'tous' || p.statut === activeStatut;
     const okDomaine = activeDomaine === 'tous' || p.domaine === activeDomaine;
     return okStatut && okDomaine;
