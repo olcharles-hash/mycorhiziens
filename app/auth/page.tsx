@@ -18,7 +18,7 @@ export default function AuthPage() {
     setError('');
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) setError(error.message);
-    else { setMessage('Connexion réussie ! Redirection...'); setTimeout(()=>window.location.href='/', 1500); }
+    else { setMessage('Connexion réussie ! Redirection...'); setTimeout(()=>window.location.href='/profil', 1500); }
     setLoading(false);
   };
 
