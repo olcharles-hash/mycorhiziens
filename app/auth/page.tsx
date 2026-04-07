@@ -38,7 +38,15 @@ export default function AuthPage() {
         avatar_color: ['#8B6E4E','#C8A97E','#5C4730','#A0856A'][Math.floor(Math.random()*4)],
         available: true,
       });
-      setMessage('Compte créé ! Vérifie ton email pour confirmer ton inscription. 🌱');
+      await fetch('/api/email', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({
+    type: 'welcome',
+    to: email,
+    data: { name: fullName, role }
+  })
+});setMessage('Compte créé ! Vérifie ton email pour confirmer ton inscription. 🌱');
     }
     setLoading(false);
   };
