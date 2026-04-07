@@ -543,7 +543,7 @@ const filtered = allProjects.filter(p => {
                   )}
                   <div className="card-footer">
                     <div className="card-team">
-                      {p.team.slice(0,3).map(m=>(
+                      {p.team.slice(0,3).map((m:any)=>(
                         <div key={m.name} className="team-av-sm" style={{background:m.color}}>{m.initials}</div>
                       ))}
                     </div>
