@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
 
 const projects = [
   {
@@ -71,7 +72,7 @@ const projects = [
     progress:67, budget:3200, spent:0, remaining:3200, startDate:'En attente vote', endDate:'Fin 2025',
     steps:[
       {title:'Définition du cahier des charges', meta:'Complété — Ibrahim D.', status:'done'},
-      {title:'Vote communautaire (en cours)', meta:'67% pour — 142/212 votes', status:'active'},
+      {title:'Vote communautaire (en cours)', meta:'Vote ouvert à tous les membres', status:'active'},
       {title:'Recrutement des premiers praticiens', meta:'À faire — post-vote', status:'todo'},
       {title:'Développement de la plateforme', meta:'À faire — 3 mois', status:'todo'},
     ],
@@ -109,6 +110,52 @@ const projects = [
       {av:'LB',author:'Lucie B.',handle:'@lucie.myco',text:'Projet bibliothèque mobile Lyon : TERMINÉ ✅ 240 livres empruntés, 3 ateliers, 47 nouveaux membres. Merci à toute l\'équipe 🙏 #Mycorhiziens',likes:387,replies:94},
     ]
   },
+  {
+    id:'terrain2', statut:'vote', domaine:'terrain', color:'#8B6E4E',
+    title:'Potager collectif — Sahel', status:'En vote', statusClass:'status-vote',
+    desc:`Partenariat avec une communauté locale au Sénégal pour installer un système d'irrigation et planter 500 arbres fruitiers sur des terres dégradées.\n\nL'objectif est de créer un modèle de régénération agricole reproductible.`,
+    progress:78, budget:2400, spent:0, remaining:2400, startDate:'En attente vote', endDate:'Déc 2025',
+    steps:[
+      {title:'Contact et accord avec la communauté locale', meta:'Complété', status:'done'},
+      {title:'Vote communautaire (en cours)', meta:'Vote ouvert à tous les membres', status:'active'},
+      {title:'Commande arbres et matériel irrigation', meta:'À faire', status:'todo'},
+      {title:'Mission terrain — plantation', meta:'À faire', status:'todo'},
+    ],
+    kanban:{todo:['Commande végétaux','Mission terrain','Suivi 3 mois'],active:['Vote communautaire','Coordination partenaire local'],done:['Accord partenariat','Analyse du terrain Sénégal']},
+    team:[
+      {initials:'KL',color:'#8B6E4E',name:'Karim L.',role:'Leader du projet',exp:'Coordinateur principal. A organisé 2 missions similaires au Maroc et en Tunisie.',skills:['Agriculture','Coordination','ONG']},
+    ],
+    expenses:[],
+    tweets:[
+      {av:'KL',author:'Karim L.',handle:'@karim.myco',text:'Nouvelle proposition : potager collectif au Sahel avec une communauté partenaire. 500 arbres fruitiers, système d\'irrigation naturel. 2 400€ nécessaires. On vote ? #PropositionMyco',likes:178,replies:56},
+    ]
+  },
+  {
+    id:'edu2', statut:'en-cours', domaine:'education', color:'#C8A97E',
+    title:'Formation numérique — Dakar', status:'En cours', statusClass:'status-en-cours',
+    desc:`5 ateliers de formation aux outils numériques, au Web3 et aux cryptomonnaies pour 30 jeunes entrepreneurs à Dakar.\n\nObjectif : donner aux participants les compétences pour participer à l'économie décentralisée.`,
+    progress:40, budget:1200, spent:480, remaining:720, startDate:'Avr 2025', endDate:'Juin 2025',
+    steps:[
+      {title:'Atelier 1 — Introduction Web3', meta:'Complété — 12 Avr 2025', status:'done'},
+      {title:'Atelier 2 — Wallets et cryptomonnaies', meta:'Complété — 26 Avr 2025', status:'done'},
+      {title:'Atelier 3 — DAOs et gouvernance', meta:'En cours — 10 Mai 2025', status:'active'},
+      {title:'Atelier 4 — Créer son projet en ligne', meta:'À faire — Mai 2025', status:'todo'},
+      {title:'Atelier 5 — Présentation des projets', meta:'À faire — Juin 2025', status:'todo'},
+    ],
+    kanban:{todo:['Atelier 4','Atelier 5','Certificats participants'],active:['Atelier 3 (en cours)','Supports pédagogiques'],done:['Atelier 1','Atelier 2','Partenariat coworking']},
+    team:[
+      {initials:'AT',color:'#5C4730',name:'Amine T.',role:'Travailleur — Formateur',exp:'Dev blockchain et formateur. A animé des formations Web3 à Casablanca et Abidjan.',skills:['Blockchain','Pédagogie','Web3']},
+    ],
+    expenses:[
+      {name:'Déplacement Dakar', date:'Avr 2025', amount:'380 €', paid:true},
+      {name:'Location salle ateliers 1&2', date:'Avr 2025', amount:'100 €', paid:true},
+      {name:'Location salle ateliers 3-5', date:'Mai-Juin 2025', amount:'150 €', paid:false},
+      {name:'Déplacement retour', date:'Juin 2025', amount:'380 €', paid:false},
+    ],
+    tweets:[
+      {av:'AT',author:'Amine T.',handle:'@amine.myco',text:'Atelier 1 terminé à Dakar 🇸🇳 30 participants, 3h de formation. Ces jeunes ont soif d\'apprendre ! #FormationMyco',likes:142,replies:38},
+    ]
+  }
 ];
 
 export default function ProjetsPage() {
@@ -119,6 +166,84 @@ export default function ProjetsPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [planView, setPlanView] = useState<'list'|'kanban'>('list');
   const [showAllExpenses, setShowAllExpenses] = useState(false);
+
+  // Vote state
+  const [user, setUser] = useState<any>(null);
+  const [votes, setVotes] = useState<Record<string, boolean|null>>({});
+  const [voteCounts, setVoteCounts] = useState<Record<string, {pour:number, contre:number}>>({});
+  const [voteLoading, setVoteLoading] = useState<string|null>(null);
+  const [voteMessage, setVoteMessage] = useState('');
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    loadVotes();
+  }, []);
+
+  const loadVotes = async () => {
+    // Load all votes counts per project
+    const { data: allVotes } = await supabase.from('votes').select('*');
+    if (!allVotes) return;
+
+    const counts: Record<string, {pour:number, contre:number}> = {};
+    allVotes.forEach((v: any) => {
+      if (!counts[v.project_id]) counts[v.project_id] = {pour:0, contre:0};
+      if (v.vote) counts[v.project_id].pour++;
+      else counts[v.project_id].contre++;
+    });
+    setVoteCounts(counts);
+
+    // Load current user votes
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const userVotes: Record<string, boolean|null> = {};
+      allVotes.filter((v:any) => v.user_id === user.id).forEach((v:any) => {
+        userVotes[v.project_id] = v.vote;
+      });
+      setVotes(userVotes);
+    }
+  };
+
+  const handleVote = async (projectId: string, vote: boolean) => {
+    if (!user) { setVoteMessage('Connecte-toi pour voter ! 🔐'); setTimeout(()=>setVoteMessage(''),3000); return; }
+    if (voteLoading) return;
+    setVoteLoading(projectId);
+
+    // Check if already voted
+    const { data: existing } = await supabase.from('votes').select('*').eq('project_id', projectId).eq('user_id', user.id).single();
+
+    if (existing) {
+      if (existing.vote === vote) {
+        // Remove vote
+        await supabase.from('votes').delete().eq('project_id', projectId).eq('user_id', user.id);
+        setVotes(prev => ({...prev, [projectId]: null}));
+      } else {
+        // Update vote
+        await supabase.from('votes').update({vote}).eq('project_id', projectId).eq('user_id', user.id);
+        setVotes(prev => ({...prev, [projectId]: vote}));
+      }
+    } else {
+      // New vote
+      await supabase.from('votes').insert({project_id: projectId, user_id: user.id, vote});
+      setVotes(prev => ({...prev, [projectId]: vote}));
+    }
+
+    await loadVotes();
+    setVoteLoading(null);
+  };
+
+  const getVotePct = (projectId: string) => {
+    const c = voteCounts[projectId];
+    if (!c) return 0;
+    const total = c.pour + c.contre;
+    if (total === 0) return 0;
+    return Math.round(c.pour / total * 100);
+  };
+
+  const getTotalVotes = (projectId: string) => {
+    const c = voteCounts[projectId];
+    if (!c) return 0;
+    return c.pour + c.contre;
+  };
 
   const filtered = projects.filter(p => {
     const okStatut = activeStatut === 'tous' || p.statut === activeStatut;
@@ -131,13 +256,14 @@ export default function ProjetsPage() {
     setActiveTab('overview');
     setPlanView('list');
     setShowAllExpenses(false);
+    setVoteMessage('');
   };
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap');
-        :root { --sand:#C8A97E;--sand-light:#E8D5B7;--sand-pale:#F5ECD8;--sand-dark:#8B6E4E;--sand-deep:#5C4730;--ink:#2A1F14;--ink-muted:#6B5840;--cream:#FAF5EC;--warm-white:#FFFDF8; }
+        :root{--sand:#C8A97E;--sand-light:#E8D5B7;--sand-pale:#F5ECD8;--sand-dark:#8B6E4E;--sand-deep:#5C4730;--ink:#2A1F14;--ink-muted:#6B5840;--cream:#FAF5EC;--warm-white:#FFFDF8;}
         *{margin:0;padding:0;box-sizing:border-box;}
         body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);}
         .pnav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:1.25rem 3rem;background:rgba(255,253,248,0.95);backdrop-filter:blur(14px);border-bottom:1px solid rgba(232,213,183,0.4);}
@@ -145,7 +271,7 @@ export default function ProjetsPage() {
         .pnav-links{display:flex;gap:2rem;list-style:none;}
         .pnav-links a{font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-muted);text-decoration:none;}
         .pnav-links a:hover,.pnav-links a.active{color:var(--sand-dark);}
-        .pnav-cta{padding:.6rem 1.5rem;background:var(--ink);color:var(--sand-pale);border:none;font-family:'DM Sans',sans-serif;font-size:.78rem;cursor:pointer;border-radius:2px;text-decoration:none;}
+        .pnav-cta{padding:.6rem 1.5rem;background:var(--ink);color:var(--sand-pale);border:none;font-family:'DM Sans',sans-serif;font-size:.78rem;letter-spacing:.08em;cursor:pointer;border-radius:2px;text-decoration:none;}
         .page-header{padding:9rem 3rem 3rem;background:var(--warm-white);border-bottom:1px solid var(--sand-light);}
         .page-header-inner{max-width:1200px;margin:0 auto;}
         .page-eyebrow{font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--sand);margin-bottom:1rem;font-weight:500;}
@@ -197,7 +323,7 @@ export default function ProjetsPage() {
         .modal-panel{width:min(780px,95vw);height:100vh;background:var(--warm-white);overflow-y:auto;display:flex;flex-direction:column;animation:slideIn .35s cubic-bezier(.4,0,.2,1);}
         @keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
         .modal-header{padding:2rem 2.5rem 1.5rem;border-bottom:1px solid var(--sand-light);position:sticky;top:0;background:var(--warm-white);z-index:10;}
-        .modal-close{position:absolute;top:1.5rem;right:1.5rem;width:32px;height:32px;border:1px solid var(--sand-light);background:transparent;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ink-muted);font-size:1rem;transition:all .2s;}
+        .modal-close{position:absolute;top:1.5rem;right:1.5rem;width:32px;height:32px;border:1px solid var(--sand-light);background:transparent;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ink-muted);font-size:1rem;}
         .modal-close:hover{background:var(--sand-pale);}
         .modal-domain{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--sand);margin-bottom:.75rem;font-weight:500;}
         .modal-title{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:300;color:var(--ink);line-height:1.15;margin-bottom:.75rem;}
@@ -211,6 +337,22 @@ export default function ProjetsPage() {
         .ov-stat-label{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--sand);margin-bottom:.4rem;}
         .ov-stat-value{font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:300;color:var(--ink);}
         .desc-block{font-size:.9rem;color:var(--ink-muted);line-height:1.8;}
+
+        /* VOTE SECTION */
+        .vote-section{background:var(--sand-pale);border:1px solid var(--sand-light);border-radius:8px;padding:1.5rem;margin-bottom:1.5rem;}
+        .vote-title{font-size:.8rem;letter-spacing:.2em;text-transform:uppercase;color:var(--sand);margin-bottom:1rem;font-weight:500;}
+        .vote-bar-track{height:8px;background:var(--sand-light);border-radius:4px;overflow:hidden;margin-bottom:.5rem;}
+        .vote-bar-fill{height:100%;border-radius:4px;background:var(--sand-dark);transition:width .5s ease;}
+        .vote-stats{display:flex;justify-content:space-between;font-size:.78rem;color:var(--ink-muted);margin-bottom:1.25rem;}
+        .vote-buttons{display:flex;gap:.75rem;}
+        .vote-btn{flex:1;padding:.75rem;border:1px solid var(--sand-light);background:var(--warm-white);font-family:'DM Sans',sans-serif;font-size:.85rem;cursor:pointer;border-radius:4px;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:.5rem;}
+        .vote-btn:hover{border-color:var(--sand);}
+        .vote-btn.voted-pour{background:#EDF5E8;border-color:#C6E0B4;color:#3B6D11;font-weight:500;}
+        .vote-btn.voted-contre{background:#FCECEA;border-color:#F5B8B5;color:#A32D2D;font-weight:500;}
+        .vote-message{font-size:.82rem;color:var(--sand-dark);margin-top:.75rem;text-align:center;font-style:italic;}
+        .vote-login-msg{font-size:.82rem;color:var(--ink-muted);text-align:center;margin-top:.75rem;}
+        .vote-login-link{color:var(--sand-dark);text-decoration:underline;cursor:pointer;}
+
         .planning-toggle{display:flex;gap:.5rem;margin-bottom:1.5rem;}
         .pbtn{padding:.4rem 1rem;border:1px solid var(--sand-light);background:transparent;font-family:'DM Sans',sans-serif;font-size:.78rem;cursor:pointer;border-radius:4px;transition:all .2s;color:var(--ink-muted);}
         .pbtn.active{background:var(--ink);color:var(--sand-pale);border-color:var(--ink);}
@@ -251,11 +393,10 @@ export default function ProjetsPage() {
         .expense-header{display:grid;grid-template-columns:1fr 100px 80px 90px;gap:1rem;padding:.5rem 1rem;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--sand);border-bottom:1px solid var(--sand-light);margin-bottom:.5rem;}
         .expense-item{display:grid;grid-template-columns:1fr 100px 80px 90px;gap:1rem;padding:.75rem 1rem;border-bottom:1px solid rgba(232,213,183,.5);font-size:.82rem;color:var(--ink-muted);align-items:center;}
         .expense-name{color:var(--ink);}
-        .exp-status{font-size:10px;padding:.2rem .5rem;border-radius:20px;}
+        .exp-badge{font-size:10px;padding:.2rem .5rem;border-radius:20px;}
         .exp-paid{background:#EDF5E8;color:#3B6D11;}
         .exp-pending{background:#FEF3E2;color:#854F0B;}
         .show-more-btn{margin-top:1rem;padding:.6rem 1.25rem;border:1px solid var(--sand-light);background:transparent;font-family:'DM Sans',sans-serif;font-size:.78rem;cursor:pointer;border-radius:4px;color:var(--ink-muted);width:100%;}
-        .show-more-btn:hover{border-color:var(--sand);color:var(--sand-dark);}
         .tweet-feed{display:flex;flex-direction:column;gap:1rem;}
         .tweet-card{background:var(--warm-white);border:1px solid var(--sand-light);border-radius:6px;padding:1.25rem;transition:border-color .2s;}
         .tweet-card:hover{border-color:var(--sand);}
@@ -265,7 +406,6 @@ export default function ProjetsPage() {
         .tweet-handle{font-size:.72rem;color:var(--ink-muted);}
         .tweet-body{font-size:.875rem;color:var(--ink);line-height:1.6;}
         .tweet-footer{display:flex;gap:1.5rem;margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--sand-light);font-size:.75rem;color:var(--ink-muted);}
-        .empty-state{text-align:center;padding:4rem 2rem;color:var(--ink-muted);font-size:.9rem;}
         @media(max-width:900px){.pnav{padding:1rem 1.5rem;}.pnav-links{display:none;}.projects-grid{grid-template-columns:1fr;}.page-header,.stats-bar,.filters-bar,.projects-container{padding-left:1.5rem;padding-right:1.5rem;}.modal-panel{width:100vw;}.kanban-board{grid-template-columns:1fr;}.overview-grid,.budget-summary{grid-template-columns:1fr 1fr;}}
       `}</style>
 
@@ -278,7 +418,7 @@ export default function ProjetsPage() {
           <li><a href="/reseau">Réseau</a></li>
           <li><a href="/tresorerie">Trésorerie</a></li>
         </ul>
-        <a href="#" className="pnav-cta">Mon profil</a>
+        <a href={user ? "/profil" : "/auth"} className="pnav-cta">{user ? "Mon profil" : "Rejoindre"}</a>
       </nav>
 
       {/* HEADER */}
@@ -286,7 +426,7 @@ export default function ProjetsPage() {
         <div className="page-header-inner">
           <p className="page-eyebrow">Communauté</p>
           <h1 className="page-title">Projets <em>en cours</em></h1>
-          <p className="page-subtitle">Suivez l&apos;avancement de chaque initiative, les équipes, les budgets et les résultats.</p>
+          <p className="page-subtitle">Suivez l&apos;avancement de chaque initiative, les équipes, les budgets et votez pour les projets qui vous tiennent à cœur.</p>
         </div>
       </div>
 
@@ -301,9 +441,16 @@ export default function ProjetsPage() {
           <div className="stat-div"></div>
           <div className="stat-item"><span className="stat-num">38 400 €</span><span className="stat-label">Budget total alloué</span></div>
           <div className="stat-div"></div>
-          <div className="stat-item"><span className="stat-num">63</span><span className="stat-label">Membres impliqués</span></div>
+          <div className="stat-item"><span className="stat-num">{Object.values(voteCounts).reduce((s,c)=>s+c.pour+c.contre,0)}</span><span className="stat-label">Votes exprimés</span></div>
         </div>
       </div>
+
+      {/* VOTE MESSAGE */}
+      {voteMessage && (
+        <div style={{background:'#FEF3E2',color:'#854F0B',padding:'.75rem 3rem',fontSize:'.85rem',textAlign:'center'}}>
+          {voteMessage} <a href="/auth" style={{color:'var(--sand-dark)',fontWeight:500}}>Se connecter →</a>
+        </div>
+      )}
 
       {/* FILTERS */}
       <div className="filters-bar">
@@ -335,32 +482,60 @@ export default function ProjetsPage() {
       {/* PROJECTS */}
       <div className="projects-container">
         <div className={`projects-grid${viewMode==='list'?' list-view':''}`}>
-          {filtered.map(p => (
-            <div key={p.id} className="project-card" onClick={()=>openProject(p)}>
-              <div className="card-color-bar" style={{background:p.color}}></div>
-              <div className="card-body">
-                <div className="card-meta">
-                  <span className="card-domain">{p.domaine}</span>
-                  <span className={`card-status ${p.statusClass}`}>{p.status}</span>
-                </div>
-                <h3 className="card-title">{p.title}</h3>
-                <p className="card-desc">{p.desc.split('\n')[0]}</p>
-                <div>
-                  <div className="progress-bar-track"><div className="progress-bar-fill" style={{width:`${p.progress}%`,background:p.color}}></div></div>
-                  <div className="progress-meta"><span>{p.progress}% complété</span><span>{p.endDate}</span></div>
-                </div>
-                <div className="card-footer">
-                  <div className="card-team">
-                    {p.team.slice(0,3).map(m=>(
-                      <div key={m.name} className="team-av-sm" style={{background:m.color}}>{m.initials}</div>
-                    ))}
+          {filtered.map(p => {
+            const pct = getVotePct(p.id);
+            const total = getTotalVotes(p.id);
+            const myVote = votes[p.id];
+            return (
+              <div key={p.id} className="project-card" onClick={()=>openProject(p)}>
+                <div className="card-color-bar" style={{background:p.color}}></div>
+                <div className="card-body">
+                  <div className="card-meta">
+                    <span className="card-domain">{p.domaine}</span>
+                    <span className={`card-status ${p.statusClass}`}>{p.status}</span>
                   </div>
-                  <span className="card-budget">{p.budget.toLocaleString('fr')} €</span>
-                  <span style={{fontSize:'.8rem',color:'var(--sand)'}}>→</span>
+                  <h3 className="card-title">{p.title}</h3>
+                  <p className="card-desc">{p.desc.split('\n')[0]}</p>
+                  <div>
+                    <div className="progress-bar-track">
+                      <div className="progress-bar-fill" style={{width:`${p.statut==='vote'?pct:p.progress}%`,background:p.color}}></div>
+                    </div>
+                    <div className="progress-meta">
+                      <span>{p.statut==='vote'?`${pct}% pour (${total} votes)`:`${p.progress}% complété`}</span>
+                      <span>{p.endDate}</span>
+                    </div>
+                  </div>
+                  {p.statut==='vote' && (
+                    <div style={{display:'flex',gap:'.5rem'}} onClick={e=>e.stopPropagation()}>
+                      <button
+                        onClick={()=>handleVote(p.id,true)}
+                        style={{flex:1,padding:'.5rem',border:`1px solid ${myVote===true?'#C6E0B4':'var(--sand-light)'}`,background:myVote===true?'#EDF5E8':'transparent',color:myVote===true?'#3B6D11':'var(--ink-muted)',borderRadius:4,cursor:'pointer',fontSize:'.78rem',fontFamily:'DM Sans,sans-serif',transition:'all .2s'}}
+                        disabled={voteLoading===p.id}
+                      >
+                        {voteLoading===p.id?'...':'✓ Pour'}
+                      </button>
+                      <button
+                        onClick={()=>handleVote(p.id,false)}
+                        style={{flex:1,padding:'.5rem',border:`1px solid ${myVote===false?'#F5B8B5':'var(--sand-light)'}`,background:myVote===false?'#FCECEA':'transparent',color:myVote===false?'#A32D2D':'var(--ink-muted)',borderRadius:4,cursor:'pointer',fontSize:'.78rem',fontFamily:'DM Sans,sans-serif',transition:'all .2s'}}
+                        disabled={voteLoading===p.id}
+                      >
+                        {voteLoading===p.id?'...':'✕ Contre'}
+                      </button>
+                    </div>
+                  )}
+                  <div className="card-footer">
+                    <div className="card-team">
+                      {p.team.slice(0,3).map(m=>(
+                        <div key={m.name} className="team-av-sm" style={{background:m.color}}>{m.initials}</div>
+                      ))}
+                    </div>
+                    <span className="card-budget">{p.budget.toLocaleString('fr')} €</span>
+                    <span style={{fontSize:'.8rem',color:'var(--sand)'}}>→</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -385,9 +560,44 @@ export default function ProjetsPage() {
 
             <div className="modal-content">
 
-              {/* OVERVIEW */}
               {activeTab==='overview' && (
                 <div>
+                  {/* VOTE IN MODAL */}
+                  {selectedProject.statut==='vote' && (
+                    <div className="vote-section">
+                      <div className="vote-title">Vote communautaire</div>
+                      <div className="vote-bar-track">
+                        <div className="vote-bar-fill" style={{width:`${getVotePct(selectedProject.id)}%`}}></div>
+                      </div>
+                      <div className="vote-stats">
+                        <span>{getVotePct(selectedProject.id)}% pour</span>
+                        <span>{getTotalVotes(selectedProject.id)} votes exprimés</span>
+                      </div>
+                      <div className="vote-buttons">
+                        <button
+                          className={`vote-btn${votes[selectedProject.id]===true?' voted-pour':''}`}
+                          onClick={()=>handleVote(selectedProject.id,true)}
+                          disabled={voteLoading===selectedProject.id}
+                        >
+                          ✓ {voteLoading===selectedProject.id?'...':'Je vote pour'}
+                        </button>
+                        <button
+                          className={`vote-btn${votes[selectedProject.id]===false?' voted-contre':''}`}
+                          onClick={()=>handleVote(selectedProject.id,false)}
+                          disabled={voteLoading===selectedProject.id}
+                        >
+                          ✕ {voteLoading===selectedProject.id?'...':'Je vote contre'}
+                        </button>
+                      </div>
+                      {!user && (
+                        <p className="vote-login-msg">
+                          <a href="/auth" className="vote-login-link">Connecte-toi</a> pour voter sur ce projet.
+                        </p>
+                      )}
+                      {voteMessage && <p className="vote-message">{voteMessage}</p>}
+                    </div>
+                  )}
+
                   <div className="overview-grid">
                     <div className="ov-stat"><div className="ov-stat-label">Budget alloué</div><div className="ov-stat-value">{selectedProject.budget.toLocaleString('fr')} €</div></div>
                     <div className="ov-stat"><div className="ov-stat-label">Dépensé</div><div className="ov-stat-value">{selectedProject.spent.toLocaleString('fr')} €</div></div>
@@ -395,7 +605,7 @@ export default function ProjetsPage() {
                     <div className="ov-stat"><div className="ov-stat-label">Échéance</div><div className="ov-stat-value" style={{fontSize:'1.2rem'}}>{selectedProject.endDate}</div></div>
                   </div>
                   <div className="section-h">Description</div>
-                  <p className="desc-block">{selectedProject.desc.replace(/\n/g,'\n\n')}</p>
+                  <p className="desc-block">{selectedProject.desc}</p>
                   <div className="section-h">Avancement</div>
                   <div style={{display:'flex',justifyContent:'space-between',fontSize:'.82rem',color:'var(--ink-muted)',marginBottom:'.5rem'}}>
                     <span>{selectedProject.progress}% complété</span>
@@ -405,7 +615,6 @@ export default function ProjetsPage() {
                 </div>
               )}
 
-              {/* PLANNING */}
               {activeTab==='planning' && (
                 <div>
                   <div className="planning-toggle">
@@ -439,7 +648,6 @@ export default function ProjetsPage() {
                 </div>
               )}
 
-              {/* TEAM */}
               {activeTab==='team' && (
                 <div className="team-list">
                   {selectedProject.team.map((m,i)=>(
@@ -457,7 +665,6 @@ export default function ProjetsPage() {
                 </div>
               )}
 
-              {/* BUDGET */}
               {activeTab==='budget' && (
                 <div>
                   <div className="budget-summary">
@@ -467,7 +674,7 @@ export default function ProjetsPage() {
                   </div>
                   <div className="budget-bar-track"><div className="budget-bar-fill" style={{width:`${selectedProject.budget>0?Math.round(selectedProject.spent/selectedProject.budget*100):0}%`}}></div></div>
                   {selectedProject.expenses.length===0
-                    ? <div className="empty-state">Aucune dépense enregistrée pour l&apos;instant.</div>
+                    ? <div style={{textAlign:'center',padding:'2rem',color:'var(--ink-muted)',fontSize:'.9rem',fontStyle:'italic'}}>Aucune dépense enregistrée pour l&apos;instant.</div>
                     : <>
                         <div className="expense-header"><span>Libellé</span><span>Date</span><span>Montant</span><span>Statut</span></div>
                         {(showAllExpenses ? selectedProject.expenses : selectedProject.expenses.slice(0,4)).map((e,i)=>(
@@ -475,7 +682,7 @@ export default function ProjetsPage() {
                             <span className="expense-name">{e.name}</span>
                             <span>{e.date}</span>
                             <span style={{fontWeight:500}}>{e.amount}</span>
-                            <span><span className={`exp-status ${e.paid?'exp-paid':'exp-pending'}`}>{e.paid?'Payé':'En attente'}</span></span>
+                            <span><span className={`exp-badge ${e.paid?'exp-paid':'exp-pending'}`}>{e.paid?'Payé':'En attente'}</span></span>
                           </div>
                         ))}
                         {selectedProject.expenses.length>4 && (
@@ -488,7 +695,6 @@ export default function ProjetsPage() {
                 </div>
               )}
 
-              {/* BRAINSTORM */}
               {activeTab==='brainstorm' && (
                 <div>
                   <p style={{fontSize:'.85rem',color:'var(--ink-muted)',marginBottom:'1.5rem',lineHeight:1.6}}>Les discussions autour de ce projet, directement depuis X. Cliquez pour voir la conversation complète.</p>
