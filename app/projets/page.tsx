@@ -426,7 +426,7 @@ export default function ProjetsPage() {
         <div className="page-header-inner">
           <p className="page-eyebrow">Communauté</p>
           <h1 className="page-title">Projets <em>en cours</em></h1>
-          <p className="page-subtitle">Suivez l&apos;avancement de chaque initiative, les équipes, les budgets et votez pour les projets qui vous tiennent à cœur.</p>
+          <p className="page-subtitle">Suivez l&apos;avancement de chaque initiative, les équipes, les budgets et votez pour les projets qui vous tiennent à cœur.</p><a href="/nouveau-projet" style={{display:'inline-block',marginTop:'1.5rem',padding:'.75rem 1.5rem',background:'var(--ink)',color:'var(--sand-pale)',borderRadius:'4px',textDecoration:'none',fontSize:'.82rem',letterSpacing:'.05em'}}>+ Proposer un projet</a>
         </div>
       </div>
 
